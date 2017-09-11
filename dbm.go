@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 var connections map[string]*sql.DB
