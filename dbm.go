@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
-var connections = make([string]*sql.DB)
+var connections map[string]*sql.DB
+
+func init() {
+	connections = make(map[string]*sql.DB)
+}
 
 type DBConfig struct {
 	host     string
@@ -15,11 +21,11 @@ type DBConfig struct {
 	password string
 	dbname   string
 	port     int
-	settings []string
+	setting  []Setting
 }
 
 const (
-	defaultPort    = "3306"
+	defaultPort    = 3306
 	defaultTimeout = "1000"
 	sDSNFormat     = "%s%s=%s"
 )
@@ -38,7 +44,7 @@ func boolSetting(source string, key string, ok bool) string {
 }
 
 func timeSetting(source string, key string, t time.Duration) string {
-	if t < time.Millisecond || t >= 24*t.Hour {
+	if t < time.Millisecond || t >= 24*time.Hour {
 		return source
 	}
 	return fmt.Sprintf(sDSNFormat, source, key, t)
@@ -46,13 +52,13 @@ func timeSetting(source string, key string, t time.Duration) string {
 
 func SetTimeout(t time.Duration) Setting {
 	return func(source string) string {
-		timeSetting(source, "timeout", t)
+		return timeSetting(source, "timeout", t)
 	}
 }
 
-func SetCharset(v string) string {
+func SetCharset(v string) Setting {
 	return func(source string) string {
-		stringSetting(source, "charset", v)
+		return stringSetting(source, "charset", v)
 	}
 }
 
@@ -67,9 +73,7 @@ func New(host string, user string, password string, dbname string) *DBConfig {
 }
 
 func (p *DBConfig) Port(port int) *DBConfig {
-	if port != "" {
-		p.port = port
-	}
+	p.port = port
 	return p
 }
 
@@ -83,7 +87,7 @@ func (p *DBConfig) Add(tagName string) error {
 	if err != nil {
 		return err
 	}
-	err := db_ins.Ping()
+	err = db_ins.Ping()
 	if err != nil {
 		return err
 	}
@@ -96,26 +100,12 @@ func (p *DBConfig) getRealDSN() string {
 	return fmt.Sprintf(dsn, p.user, p.password, p.host, p.port, p.dbname, concatDSN(p.setting))
 }
 
-func concatDSN(sets []string) string {
+func concatDSN(sets []Setting) string {
 	s := ""
 	for _, f := range sets {
 		s = f(s)
 	}
 	return s
-}
-
-var configList = make([string]*DBConfig)
-
-func GetConnect(name string) (*sql.DB, error) {
-	if connections[name] {
-		return connections[name], nil
-	}
-	cnt, err = newConnection(name)
-	if err != nil {
-		return nil, err
-	}
-	connections[name] = cnt
-	return cnt, nil
 }
 
 func GetConnection(tagName string) (*sql.DB, error) {
